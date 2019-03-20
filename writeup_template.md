@@ -1,6 +1,5 @@
-## Writeup Template
+## Writeup for Advanced Lane Finding Project
 
-### You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
 
 ---
 
@@ -19,13 +18,13 @@ The goals / steps of this project are the following:
 
 [//]: # (Image References)
 
-[image1]: ./examples/undistort_output.png "Undistorted"
-[image2]: ./test_images/test1.jpg "Road Transformed"
-[image3]: ./examples/binary_combo_example.jpg "Binary Example"
-[image4]: ./examples/warped_straight_lines.jpg "Warp Example"
-[image5]: ./examples/color_fit_lines.jpg "Fit Visual"
-[image6]: ./examples/example_output.jpg "Output"
-[video1]: ./project_video.mp4 "Video"
+[image1]: ./output_images/chess.png "Undistorted"
+[image2]: ./output_images/normvsundistort.png "Road Transformed"
+[image3]: ./output_images/warp.png "Warp example"
+[image4]: ./output_images/multiple.png "Multiple Binary"
+[image5]: ./output_images/download.png "Lane Area"
+[image6]: ./output_images/hist.png "Histogram"
+[video1]: ./output_images/out1.mp4 "Output Video"
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
 
@@ -35,19 +34,13 @@ The goals / steps of this project are the following:
 
 ### Writeup / README
 
-#### 1. Provide a Writeup / README that includes all the rubric points and how you addressed each one.  You can submit your writeup as markdown or pdf.  [Here](https://github.com/udacity/CarND-Advanced-Lane-Lines/blob/master/writeup_template.md) is a template writeup for this project you can use as a guide and a starting point.  
-
-You're reading it!
+This is my attempt to use various image processing techniques to draw the lanes on a road. All my code is present in 'Advanced-car.ipynb' and will be referenced from there.
 
 ### Camera Calibration
 
 #### 1. Briefly state how you computed the camera matrix and distortion coefficients. Provide an example of a distortion corrected calibration image.
 
-The code for this step is contained in the first code cell of the IPython notebook located in "./examples/example.ipynb" (or in lines # through # of the file called `some_file.py`).  
-
-I start by preparing "object points", which will be the (x, y, z) coordinates of the chessboard corners in the world. Here I am assuming the chessboard is fixed on the (x, y) plane at z=0, such that the object points are the same for each calibration image.  Thus, `objp` is just a replicated array of coordinates, and `objpoints` will be appended with a copy of it every time I successfully detect all chessboard corners in a test image.  `imgpoints` will be appended with the (x, y) pixel position of each of the corners in the image plane with each successful chessboard detection.  
-
-I then used the output `objpoints` and `imgpoints` to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function.  I applied this distortion correction to the test image using the `cv2.undistort()` function and obtained this result: 
+In the first four cells, I created helper functions 'get_points', camera_calibrate' and 'undistort' to calibrate the chessboard images. For finding objpoints and imgpoints I used Udacity's provided code. This was done under the assumption that the z-coordinates of the 3-D object were completely flat. 'camera_calibrate' wrapped the cv2.calibrateCamera function, while discarding the rvecs and tvecs. objpoints and imgpoints were passed in, and the function calculated the camera calibration and distortion coefficients, which were then passed into 'undistort'.
 
 ![alt text][image1]
 
@@ -55,30 +48,32 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 
 #### 1. Provide an example of a distortion-corrected image.
 
-To demonstrate this step, I will describe how I apply the distortion correction to one of the test images like this one:
 ![alt text][image2]
 
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
 
-I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines # through # in `another_file.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
+All of my functions for applying individual thresholds are present in the twelvth code block of 'Advanced-car.ipynb'.
+I experimented with individual color threshold channels and Canny-based algorithms and plotted the binary results side-by-side. This allowed me to evaluate the attributes of each one in different situations. I found that, while gradx and grady were good for identifying the shape of lanes under different lighting conditions, they would often only outline them rather than fill them in, which led to confusing histogram shapes. Converting the image into HLS space allowed far greater improvements for the final filter, as it allowed me to use the light channel to spot white lanes, and hue to search specifically for yellow lanes. Saturation was also very useful for identifying lanes, although it was susceptible to picking up shadows from trees. 
 
-![alt text][image3]
+![alt text][image4]
 
 #### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
 
-The code for my perspective transform includes a function called `warper()`, which appears in lines 1 through 8 in the file `example.py` (output_images/examples/example.py) (or, for example, in the 3rd code cell of the IPython notebook).  The `warper()` function takes as inputs an image (`img`), as well as source (`src`) and destination (`dst`) points.  I chose the hardcode the source and destination points in the following manner:
+I created a helper function 'warp' that took in an undistorted image and its perspective transform, and returned an image from the top-down perspective in the eighth code cell. 
 
 ```python
-src = np.float32(
-    [[(img_size[0] / 2) - 55, img_size[1] / 2 + 100],
-    [((img_size[0] / 6) - 10), img_size[1]],
-    [(img_size[0] * 5 / 6) + 60, img_size[1]],
-    [(img_size[0] / 2 + 55), img_size[1] / 2 + 100]])
-dst = np.float32(
-    [[(img_size[0] / 4), 0],
-    [(img_size[0] / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), 0]])
+#For now I am going to use the example src and dst points provided by Udacity
+img = plt.imread("../test_images/test1.jpg")
+undistorted = undistort(img, mtx, dist)
+src = np.float32([[585, 460], [203, 720], [1127, 720], [695, 460]])
+dst = np.float32([[320, 0], [320,720], [960, 720], [960, 0]])
+M, Minv = mminv(src, dst)
+# img_size = (undistorted.shape[1], undistorted.shape[0])
+# warped = cv2.warpPerspective(undistorted, M, img_size)
+warped = warp(undistorted, M)
+
+f = plot_compare(undistorted, warped, p1='undistorted', p2='warped')
+f.savefig('warp.png')
 ```
 
 This resulted in the following source and destination points:
@@ -92,23 +87,22 @@ This resulted in the following source and destination points:
 
 I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
 
-![alt text][image4]
+![alt text][image3]
 
 #### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
 
-Then I did some other stuff and fit my lane lines with a 2nd order polynomial kinda like this:
+First, I tested some binary images by plotting them as a histogram with matplotlib:
+![alt text][image6]
 
-![alt text][image5]
+Once peaks for the left and right lanes could be identified, I used Udacity's provided code in the 22nd code block, where 'find_lane_pixels' and 'fit_polynomial' was copied to. I then modified 'fit_polynomial' to create 'fit_polynomial2', which skipped the visualization and just returned the characteristics of the two lanes, as well as the detected x and y points. I made similar modifications to 'search_around_poly' with 'search_around_poly2', which returns the line characteristics for the left and right lanes, as well as any points that belonged to them. I then defined two helper functions 'create_lines' and 'draw', which helped initialize, as well as draw, the lines onto the image. This was accomplished the same was as in code provided by Udacity, where a mask of the image is created, and cv2.fillPoly is used to draw the lines. 
 
 #### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
-I did this in lines # through # in my code in `my_other_file.py`
+I made a helper function 'measure_curvature_real', which was identical to that provided by Udacity, except for changing the constants 'ym_per_pix' and 'xm_per_pix' based on the radius provided in the assignment prompt. 
 
 #### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
 
-I implemented this step in lines # through # in my code in `yet_another_file.py` in the function `map_lane()`.  Here is an example of my result on a test image:
-
-![alt text][image6]
+![alt text][image4]
 
 ---
 
@@ -116,7 +110,7 @@ I implemented this step in lines # through # in my code in `yet_another_file.py`
 
 #### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
 
-Here's a [link to my video result](./project_video.mp4)
+![alt text][video1]
 
 ---
 
@@ -124,4 +118,4 @@ Here's a [link to my video result](./project_video.mp4)
 
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+I had great difficulty deciding what was the best filter to use for identifying the yellow and white lines while reducing noise. While the six provided test images helped test when the color of the pavement changed, while processing the video the sudden change in color between frames would often result in the lines becoming heavily skewed. Adding better safeguards to make the program more robust to noise (shadows, pavement color changes, etc.) would be to add multiple filters that would factor in different lighting conditions, as well as tests that check whether a lane's curvature is changing between frames too rapidly. If a sudden change in the x-center of the lane or curvature is detected, then either the previous frame's line could be drawn again, or a different filter could be used on that specific frame. However, this would be very cpu intensive and not feasible in a real-time experiment. 
